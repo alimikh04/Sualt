@@ -1,0 +1,33 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ittcargo
+      POSTGRES_PASSWORD: ittcargo
+      POSTGRES_DB: ittcargo
+    ports: ['5432:5432']
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7
+    ports: ['6379:6379']
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+  backend:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - ../backend:/app
+    command: sh -c "npm i && npm run start:dev"
+    ports: ['3000:3000']
+    depends_on: [postgres, redis, minio]
+volumes:
+  pg_data:
