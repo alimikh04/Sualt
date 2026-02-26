@@ -1,0 +1,272 @@
+openapi: 3.0.3
+info:
+  title: ITtcargo API
+  version: 0.1.0
+  description: KZ localized SuperApp API (MVP)
+servers:
+  - url: https://api.dev.ittcargo.kz
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+    LoginOtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone: { type: string, example: '+77011234567' }
+    VerifyOtpRequest:
+      type: object
+      required: [phone, otp, role]
+      properties:
+        phone: { type: string }
+        otp: { type: string, example: '0000' }
+        role:
+          type: string
+          enum: [shipper, driver, carrier_admin, corporate_operator]
+    AuthTokens:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        activeRole: { type: string }
+    CreateOrderRequest:
+      type: object
+      required: [type, pickup, dropoff, cargo, bidDeadline]
+      properties:
+        type: { type: string, enum: [city, intercity, magistral] }
+        pickup: { type: object }
+        dropoff: { type: object }
+        cargo: { type: object }
+        requirements: { type: object }
+        bidDeadline: { type: string, format: date-time }
+    Order:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        status: { type: string }
+        bidDeadline: { type: string, format: date-time }
+    CreateBidRequest:
+      type: object
+      required: [amountKzt, etaMinutes, vehicleId]
+      properties:
+        amountKzt: { type: number }
+        etaMinutes: { type: integer }
+        vehicleId: { type: string, format: uuid }
+    Bid:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        amountKzt: { type: number }
+        etaMinutes: { type: integer }
+        status: { type: string }
+    EscrowHold:
+      type: object
+      properties:
+        orderId: { type: string, format: uuid }
+        grossAmount: { type: number }
+        platformFee: { type: number }
+        status: { type: string }
+security:
+  - bearerAuth: []
+paths:
+  /v1/auth/request-otp:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginOtpRequest' }
+      responses:
+        '200':
+          description: OTP sent (mock)
+  /v1/auth/verify-otp:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyOtpRequest' }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+  /v1/auth/refresh:
+    post:
+      tags: [Auth]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Refreshed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+
+  /v1/orders:
+    post:
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+    get:
+      tags: [Orders]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: List orders
+
+  /v1/orders/{orderId}:
+    get:
+      tags: [Orders]
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Order detail
+
+  /v1/orders/{orderId}/bids:
+    post:
+      tags: [Auction]
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBidRequest' }
+      responses:
+        '201':
+          description: Bid created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Bid' }
+        '409':
+          description: Auction closed
+
+  /v1/orders/{orderId}/bids/{bidId}/accept:
+    post:
+      tags: [Auction]
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: bidId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Bid accepted
+
+  /v1/orders/{orderId}/tracking:
+    post:
+      tags: [Tracking]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lat: { type: number }
+                lng: { type: number }
+                status: { type: string }
+      responses:
+        '200': { description: Updated }
+
+  /v1/payments/escrow/{orderId}:
+    get:
+      tags: [Payments]
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Escrow state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EscrowHold' }
+
+  /v1/payments/webhooks/simulated:
+    post:
+      tags: [Payments]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event: { type: string, enum: [payment_succeeded, payment_failed] }
+                orderId: { type: string }
+                idempotencyKey: { type: string }
+      responses:
+        '200':
+          description: Webhook processed
+
+  /v1/documents/ettn:
+    post:
+      tags: [Documents]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties:
+                orderId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: eTTN draft generated
+
+  /v1/admin/kyc/{userId}/verify:
+    post:
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: KYC updated
