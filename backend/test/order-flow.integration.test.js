@@ -56,3 +56,26 @@ test('happy path: create -> bid -> accept -> escrow', async () => {
 
   server.close();
 });
+
+test('rbac: driver cannot create order', async () => {
+  const { server } = createApp();
+  await new Promise((r) => server.listen(0, r));
+  const port = server.address().port;
+  const base = `http://127.0.0.1:${port}`;
+
+  await httpJson(base, '/v1/auth/request-otp', 'POST', { phone: '+77013333333' });
+  const driver = await httpJson(base, '/v1/auth/verify-otp', 'POST', {
+    phone: '+77013333333', otp: '0000', role: 'driver',
+  });
+
+  const order = await httpJson(base, '/v1/orders', 'POST', {
+    type: 'city',
+    pickup: { city: 'A' },
+    dropoff: { city: 'B' },
+    cargo: { type: 'x' },
+    bidDeadline: new Date(Date.now() + 300_000).toISOString(),
+  }, driver.body.accessToken);
+
+  assert.equal(order.status, 403);
+  server.close();
+});

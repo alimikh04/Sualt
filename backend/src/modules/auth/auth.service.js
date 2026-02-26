@@ -15,11 +15,17 @@ export class AuthService {
     if (rec.otp !== otp) throw new Error('OTP қате');
 
     const userId = `u_${phone.replace(/\D/g, '')}`;
-    const accessToken = Buffer.from(JSON.stringify({ userId, phone, role })).toString('base64url');
+    const existing = this.store.users.get(userId);
+    const roles = existing?.roles ?? [];
+    const mergedRoles = Array.from(new Set([...roles, role]));
+
+    const accessToken = Buffer.from(
+      JSON.stringify({ userId, phone, role, roles: mergedRoles, locale: 'kk', timezone: 'Asia/Almaty' }),
+    ).toString('base64url');
     const refreshToken = Buffer.from(JSON.stringify({ userId, phone, t: 'refresh' })).toString('base64url');
 
-    this.store.users.set(userId, { id: userId, phone, roles: Array.from(new Set([role])) });
-    return { accessToken, refreshToken, activeRole: role, userId };
+    this.store.users.set(userId, { id: userId, phone, roles: mergedRoles });
+    return { accessToken, refreshToken, activeRole: role, roles: mergedRoles, userId };
   }
 
   parseAccessToken(token) {

@@ -7,6 +7,8 @@ import { DocumentsService } from './modules/documents/documents.service.js';
 import { NotificationsService } from './modules/notifications/notifications.service.js';
 import { AdminService } from './modules/admin/admin.service.js';
 
+const ALLOWED_ORDER_TYPES = new Set(['city', 'intercity', 'magistral']);
+
 export function createApp() {
   const store = {
     otps: new Map(),
@@ -44,6 +46,19 @@ export function createApp() {
     return auth.parseAccessToken(header.slice('Bearer '.length));
   }
 
+  function requireRole(actor, allowedRoles) {
+    if (!actor || !allowedRoles.includes(actor.role)) {
+      const label = allowedRoles.join(', ');
+      throw new Error(`Role access denied. Required: ${label}`);
+    }
+  }
+
+  function validateCreateOrder(body) {
+    if (!ALLOWED_ORDER_TYPES.has(body.type)) throw new Error('Order type қате');
+    if (!body.pickup || !body.dropoff || !body.cargo) throw new Error('pickup/dropoff/cargo міндетті');
+    if (!body.bidDeadline) throw new Error('bidDeadline міндетті');
+  }
+
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
@@ -64,6 +79,8 @@ export function createApp() {
       }
 
       if (req.method === 'POST' && url.pathname === '/v1/orders') {
+        requireRole(actor, ['shipper', 'corporate_operator']);
+        validateCreateOrder(body);
         const order = orders.create({
           type: body.type,
           shipperUserId: actor.userId,
@@ -81,6 +98,7 @@ export function createApp() {
       }
 
       if (req.method === 'POST' && /^\/v1\/orders\/[^/]+\/bids$/.test(url.pathname)) {
+        requireRole(actor, ['driver', 'carrier_admin']);
         const orderId = url.pathname.split('/')[3];
         const order = orders.get(orderId);
         const bid = auction.placeBid(order, {
@@ -94,7 +112,11 @@ export function createApp() {
       }
 
       if (req.method === 'POST' && /^\/v1\/orders\/[^/]+\/bids\/[^/]+\/accept$/.test(url.pathname)) {
+        requireRole(actor, ['shipper', 'corporate_operator']);
         const [, , , orderId, , bidId] = url.pathname.split('/');
+        const order = orders.get(orderId);
+        if (order.shipperUserId !== actor.userId) throw new Error('Тек тапсырыс иесі accept жасай алады');
+
         const selected = auction.acceptBid(orderId, bidId);
         orders.setStatus(orderId, 'assigned');
         const hold = payments.hold(orderId, selected.amountKzt);
@@ -103,6 +125,7 @@ export function createApp() {
       }
 
       if (req.method === 'POST' && /^\/v1\/orders\/[^/]+\/tracking$/.test(url.pathname)) {
+        requireRole(actor, ['driver', 'carrier_admin']);
         const orderId = url.pathname.split('/')[3];
         return json(res, 200, orders.addTracking(orderId, body));
       }
@@ -117,17 +140,21 @@ export function createApp() {
       }
 
       if (req.method === 'POST' && url.pathname === '/v1/documents/ettn') {
+        requireRole(actor, ['shipper', 'corporate_operator', 'carrier_admin']);
         return json(res, 201, docs.createEttn(body.orderId));
       }
 
       if (req.method === 'POST' && /^\/v1\/admin\/kyc\/[^/]+\/verify$/.test(url.pathname)) {
+        requireRole(actor, ['admin', 'support']);
         const userId = url.pathname.split('/')[4];
         return json(res, 200, admin.verifyKyc(userId));
       }
 
       json(res, 404, { message: 'Not found' });
     } catch (error) {
-      json(res, 400, { message: error.message || 'Bad request' });
+      const message = error?.message || 'Bad request';
+      const status = message.includes('Role access denied') ? 403 : 400;
+      json(res, status, { message });
     }
   });
 

@@ -24,6 +24,16 @@ cd backend
 npm test
 ```
 
+## CI
+- `Python package` workflow: pytest no-tests (`exit 5`) жағдайын success қылады.
+- `Node backend tests` workflow: backend-тегі `node --test` тесттерін іске қосады.
+
+## Қадам-қадаммен дамыту (ұсынылатын тәртіп)
+1. **Step 1 (жасалды):** RBAC + order status transition guard + Node CI.
+2. **Step 2:** Postgres persistence және migration layer.
+3. **Step 3:** Audit log, idempotent webhook, escrow state machine.
+4. **Step 4:** Web/Mobile экрандарын нақты API-ге жалғау.
+
 ## Infra
 ```bash
 cp infra/.env.example infra/.env
