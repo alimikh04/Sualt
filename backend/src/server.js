@@ -6,6 +6,7 @@ import { PaymentsService } from './modules/payments/payments.service.js';
 import { DocumentsService } from './modules/documents/documents.service.js';
 import { NotificationsService } from './modules/notifications/notifications.service.js';
 import { AdminService } from './modules/admin/admin.service.js';
+import { AuditService } from './modules/common/audit.service.js';
 
 const ALLOWED_ORDER_TYPES = new Set(['city', 'intercity', 'magistral']);
 
@@ -18,6 +19,8 @@ export function createApp() {
     escrow: new Map(),
     documents: new Map(),
     kyc: new Map(),
+    webhookEvents: new Map(),
+    auditLogs: [],
   };
 
   const auth = new AuthService(store);
@@ -27,6 +30,7 @@ export function createApp() {
   const docs = new DocumentsService(store);
   const notifications = new NotificationsService();
   const admin = new AdminService(store);
+  const audit = new AuditService(store);
 
   function json(res, code, body) {
     res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
@@ -67,10 +71,14 @@ export function createApp() {
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true });
 
       if (req.method === 'POST' && url.pathname === '/v1/auth/request-otp') {
-        return json(res, 200, auth.requestOtp(body.phone));
+        const result = auth.requestOtp(body.phone);
+        audit.log({ action: 'auth.request_otp', entity: 'user', entityId: body.phone, meta: { phone: body.phone } });
+        return json(res, 200, result);
       }
       if (req.method === 'POST' && url.pathname === '/v1/auth/verify-otp') {
-        return json(res, 200, auth.verifyOtp(body.phone, body.otp, body.role));
+        const result = auth.verifyOtp(body.phone, body.otp, body.role);
+        audit.log({ actorUserId: result.userId, actorRole: result.activeRole, action: 'auth.verify_otp', entity: 'user', entityId: result.userId });
+        return json(res, 200, result);
       }
 
       const actor = parseAuth(req);
@@ -90,6 +98,7 @@ export function createApp() {
           requirements: body.requirements ?? [],
           bidDeadline: body.bidDeadline,
         });
+        audit.log({ actorUserId: actor.userId, actorRole: actor.role, action: 'orders.create', entity: 'order', entityId: order.id });
         return json(res, 201, order);
       }
 
@@ -108,6 +117,7 @@ export function createApp() {
           amountKzt: body.amountKzt,
           etaMinutes: body.etaMinutes,
         });
+        audit.log({ actorUserId: actor.userId, actorRole: actor.role, action: 'auction.place_bid', entity: 'bid', entityId: bid.id, meta: { orderId } });
         return json(res, 201, bid);
       }
 
@@ -121,13 +131,16 @@ export function createApp() {
         orders.setStatus(orderId, 'assigned');
         const hold = payments.hold(orderId, selected.amountKzt);
         notifications.sendPush(selected.carrierId, `Order ${orderId} сізге берілді`);
+        audit.log({ actorUserId: actor.userId, actorRole: actor.role, action: 'auction.accept_bid', entity: 'bid', entityId: bidId, meta: { orderId } });
         return json(res, 200, { bid: selected, escrow: hold });
       }
 
       if (req.method === 'POST' && /^\/v1\/orders\/[^/]+\/tracking$/.test(url.pathname)) {
         requireRole(actor, ['driver', 'carrier_admin']);
         const orderId = url.pathname.split('/')[3];
-        return json(res, 200, orders.addTracking(orderId, body));
+        const updated = orders.addTracking(orderId, body);
+        audit.log({ actorUserId: actor.userId, actorRole: actor.role, action: 'orders.tracking_update', entity: 'order', entityId: orderId, meta: { status: body.status } });
+        return json(res, 200, updated);
       }
 
       if (req.method === 'GET' && /^\/v1\/payments\/escrow\/[^/]+$/.test(url.pathname)) {
@@ -136,18 +149,30 @@ export function createApp() {
       }
 
       if (req.method === 'POST' && url.pathname === '/v1/payments/webhooks/simulated') {
-        return json(res, 200, payments.webhook(body));
+        const result = payments.webhook(body);
+        audit.log({ action: 'payments.webhook', entity: 'escrow', entityId: body.orderId, meta: { event: body.event, idempotencyKey: body.idempotencyKey, replay: result.idempotentReplay } });
+        return json(res, 200, result);
       }
 
       if (req.method === 'POST' && url.pathname === '/v1/documents/ettn') {
         requireRole(actor, ['shipper', 'corporate_operator', 'carrier_admin']);
-        return json(res, 201, docs.createEttn(body.orderId));
+        const doc = docs.createEttn(body.orderId);
+        audit.log({ actorUserId: actor.userId, actorRole: actor.role, action: 'documents.create_ettn', entity: 'document', entityId: doc.id, meta: { orderId: body.orderId } });
+        return json(res, 201, doc);
       }
 
       if (req.method === 'POST' && /^\/v1\/admin\/kyc\/[^/]+\/verify$/.test(url.pathname)) {
         requireRole(actor, ['admin', 'support']);
         const userId = url.pathname.split('/')[4];
-        return json(res, 200, admin.verifyKyc(userId));
+        const result = admin.verifyKyc(userId);
+        audit.log({ actorUserId: actor.userId, actorRole: actor.role, action: 'admin.kyc_verify', entity: 'user', entityId: userId });
+        return json(res, 200, result);
+      }
+
+      if (req.method === 'GET' && url.pathname === '/v1/admin/audit-logs') {
+        requireRole(actor, ['admin', 'support']);
+        const limit = Number(url.searchParams.get('limit') ?? 50);
+        return json(res, 200, audit.list(limit));
       }
 
       json(res, 404, { message: 'Not found' });

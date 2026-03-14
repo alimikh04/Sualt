@@ -34,6 +34,8 @@ npm test
 3. **Step 3:** Audit log, idempotent webhook, escrow state machine.
 4. **Step 4:** Web/Mobile экрандарын нақты API-ге жалғау.
 
+5. **Step 5:** Audit logs endpoint + idempotent payment webhooks (жасалды).
+
 ## Infra
 ```bash
 cp infra/.env.example infra/.env

@@ -29,11 +29,21 @@ export class PaymentsService {
     return hold;
   }
 
-  webhook({ event, orderId }) {
+  webhook({ event, orderId, idempotencyKey }) {
+    if (!idempotencyKey) throw new Error('idempotencyKey міндетті');
+
+    const duplicate = this.store.webhookEvents.get(idempotencyKey);
+    if (duplicate) {
+      return { ...duplicate, idempotentReplay: true };
+    }
+
     const hold = this.mustGet(orderId);
     hold.providerEvent = event;
     hold.updatedAt = new Date().toISOString();
-    return hold;
+
+    const result = { orderId, event, processedAt: hold.updatedAt };
+    this.store.webhookEvents.set(idempotencyKey, result);
+    return { ...result, idempotentReplay: false };
   }
 
   mustGet(orderId) {

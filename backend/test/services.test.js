@@ -47,12 +47,24 @@ test('Auction: vehicle mismatch rejects', () => {
 });
 
 test('Payments: hold/release', () => {
-  const store = { escrow: new Map() };
+  const store = { escrow: new Map(), webhookEvents: new Map() };
   const svc = new PaymentsService(store);
   svc.hold('o1', 10000, 0.1, 500);
   const rel = svc.release('o1');
   assert.equal(rel.status, 'released');
   assert.equal(rel.platformFee, 1000);
+});
+
+test('Payments: webhook idempotency replay', () => {
+  const store = { escrow: new Map(), webhookEvents: new Map() };
+  const svc = new PaymentsService(store);
+  svc.hold('o1', 20000);
+
+  const first = svc.webhook({ event: 'payment_succeeded', orderId: 'o1', idempotencyKey: 'k1' });
+  const second = svc.webhook({ event: 'payment_succeeded', orderId: 'o1', idempotencyKey: 'k1' });
+
+  assert.equal(first.idempotentReplay, false);
+  assert.equal(second.idempotentReplay, true);
 });
 
 test('Orders: invalid status transition rejects', () => {
