@@ -1,0 +1,16 @@
+:root { font-family: Inter, system-ui, sans-serif; }
+body { margin: 0; background: #f5f7fb; color: #1f2937; }
+.layout { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.sidebar { background: #111827; color: white; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+.sidebar button { background: #1f2937; color: white; border: 0; padding: 10px; text-align: left; border-radius: 8px; }
+.sidebar .ghost { margin-top: auto; background: #374151; }
+.content { padding: 24px; }
+.cards { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; }
+.card { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.08); display: flex; flex-direction: column; gap: 8px; }
+.card strong { font-size: 24px; }
+.login-card { width: 360px; margin: 80px auto; background: white; padding: 24px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 3px 16px rgba(0,0,0,.08); }
+.login-card input, .login-card button, select { padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; }
+button.active { border: 2px solid #0ea5e9; }
+.row { display: flex; align-items: center; gap: 8px; }
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+th, td { padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; }

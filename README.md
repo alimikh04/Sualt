@@ -41,3 +41,11 @@ npm test
 cp infra/.env.example infra/.env
 docker compose -f infra/docker-compose.yml up -d
 ```
+
+
+## Web (Control Tower)
+```bash
+cd web
+npm install
+npm run dev
+```
