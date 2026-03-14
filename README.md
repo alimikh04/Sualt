@@ -49,3 +49,16 @@ cd web
 npm install
 npm run dev
 ```
+
+
+## Mobile (Негізгі қосымша)
+```bash
+cd mobile
+flutter pub get
+flutter run
+```
+
+Қосымшада бар:
+- OTP login + role select (Shipper/Driver/Carrier Admin/Corporate)
+- Bottom navigation: Order create, Tracking, Wallet, Profile
+- KZ localization baseline (kk/ru, KZT, Asia/Almaty)
