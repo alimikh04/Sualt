@@ -1,0 +1,24 @@
+name: Mobile Flutter checks
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  flutter-analyze:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Flutter version
+        run: flutter --version
+      - name: Install mobile dependencies
+        run: flutter pub get
+      - name: Static analysis
+        run: flutter analyze

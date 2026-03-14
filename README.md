@@ -62,3 +62,19 @@ flutter run
 - OTP login + role select (Shipper/Driver/Carrier Admin/Corporate)
 - Bottom navigation: Order create, Tracking, Wallet, Profile
 - KZ localization baseline (kk/ru, KZT, Asia/Almaty)
+
+
+### Flutter жоқ болса (command not found: flutter)
+Бұл код қатесі емес, ортада Flutter SDK орнатылмағанын білдіреді.
+
+Жылдам тексеру:
+```bash
+cd mobile
+./scripts/check_flutter_env.sh
+```
+
+Орнату қадамдары:
+1. Flutter SDK орнатыңыз: https://docs.flutter.dev/get-started/install
+2. `flutter/bin` жолын `PATH`-қа қосыңыз
+3. Тексеру: `flutter --version && flutter doctor`
+4. Жобаны іске қосу: `flutter pub get && flutter run`
